@@ -1,0 +1,18 @@
+{
+  "version": 2,
+  "builds": [{ "src": "server.js", "use": "@vercel/node" }],
+  "routes": [{ "src": "/(.*)", "dest": "server.js" }]
+}
+```
+5. Save it
+
+Your folder structure should look like:
+```
+smawasis/
+└── app/
+    ├── backend/
+    │   ├── vercel.json   ← goes here
+    │   ├── server.js
+    │   ├── package.json
+    │   └── ...
+    └── frontend/

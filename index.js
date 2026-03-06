@@ -7,9 +7,12 @@ const pool = new Pool({
   database: process.env.DB_NAME     || 'smawasis',
   user:     process.env.DB_USER     || 'postgres',
   password: process.env.DB_PASSWORD || 'postgres',
-  max: 20,
-  idleTimeoutMillis: 30000,
-  connectionTimeoutMillis: 2000,
+  max: 1,
+  idleTimeoutMillis: 10000,
+  connectionTimeoutMillis: 5000,
+  ssl: process.env.NODE_ENV === 'production'
+    ? { rejectUnauthorized: false }
+    : false,
 });
 
 pool.on('error', (err) => {

@@ -51,7 +51,10 @@ app.use((err, req, res, next) => {
 });
 
 // ── START ─────────────────────────────────────────────────────
-app.listen(PORT, () => {
+if (process.env.NODE_ENV !== 'production') {
+  app.listen(PORT, () => console.log(`Running on ${PORT}`));
+}
+module.exports = app; // Vercel uses this
   console.log(`✅ SmaWaSIS API running on http://localhost:${PORT}`);
   console.log(`   Environment: ${process.env.NODE_ENV || 'development'}`);
   console.log(`   DB: ${process.env.DB_HOST || 'localhost'}:${process.env.DB_PORT || '5432'}/${process.env.DB_NAME || 'smawasis'}`);

@@ -1,4 +1,4 @@
-const db = require('../db');
+const db = require('./db');
 
 /**
  * Assignment Engine — determines the correct ward team for a ticket

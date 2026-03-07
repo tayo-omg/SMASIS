@@ -1,7 +1,7 @@
 const express = require('express');
 const db = require('./db');
-const { verifyJWT, requireRole } = require('../middleware/auth');
-const { assignToWard } = require('../controllers/assignmentEngine');
+const { verifyJWT, requireRole } = require('./middleware/auth');
+const { assignToWard } = require('./assignmentEngine');
 
 const router = express.Router();
 

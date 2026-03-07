@@ -3,9 +3,9 @@ const express = require('express');
 const cors = require('cors');
 const path = require('path');
 
-const authRoutes = require('./routes/auth');
-const ticketRoutes = require('./routes/tickets');
-const { reportsRouter, catRouter } = require('./routes/reports');
+const authRoutes = require('./auth');
+const ticketRoutes = require('./tickets');
+const { reportsRouter, catRouter } = require('./reports');
 
 const app = express();
 const PORT = process.env.PORT || 5000;

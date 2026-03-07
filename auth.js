@@ -1,58 +1,109 @@
-const jwt = require('jsonwebtoken');
+const express = require('express');
+const bcrypt = require('bcryptjs');
+const db = require('../db');
+const { issueToken, verifyJWT } = require('../middleware/auth');
 
-const JWT_SECRET = process.env.JWT_SECRET || 'smawasis_dev_secret_change_in_production';
+const router = express.Router();
 
-/**
- * Verifies JWT from Authorization header.
- * Attaches decoded user payload to req.user.
- */
-function verifyJWT(req, res, next) {
-  const authHeader = req.headers['authorization'];
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return res.status(401).json({ error: 'UNAUTHORIZED', message: 'Missing or malformed Authorization header' });
+// ── POST /api/auth/register ──────────────────────────────────
+router.post('/register', async (req, res) => {
+  const { name, email, password, role, team_id } = req.body;
+
+  // Validation
+  if (!name || !email || !password || !role) {
+    return res.status(400).json({ error: 'VALIDATION_ERROR', message: 'name, email, password, and role are required' });
+  }
+  if (!['citizen', 'contractor', 'admin'].includes(role)) {
+    return res.status(400).json({ error: 'VALIDATION_ERROR', message: 'role must be citizen, contractor, or admin' });
+  }
+  if (password.length < 6) {
+    return res.status(400).json({ error: 'VALIDATION_ERROR', message: 'password must be at least 6 characters' });
   }
 
-  const token = authHeader.split(' ')[1];
   try {
-    const decoded = jwt.verify(token, JWT_SECRET);
-    req.user = decoded;
-    next();
+    // Check for duplicate email
+    const existing = await db.query('SELECT id FROM users WHERE email = $1', [email.toLowerCase()]);
+    if (existing.rows.length > 0) {
+      return res.status(409).json({ error: 'CONFLICT', message: 'Email already registered' });
+    }
+
+    // Hash password (bcrypt cost factor 12 per SEC-03)
+    const password_hash = await bcrypt.hash(password, 12);
+
+    // Insert user
+    const result = await db.query(
+      `INSERT INTO users (name, email, password_hash, role, team_id)
+       VALUES ($1, $2, $3, $4, $5)
+       RETURNING id, name, email, role, team_id, created_at`,
+      [name, email.toLowerCase(), password_hash, role, team_id || null]
+    );
+
+    const user = result.rows[0];
+    const token = issueToken(user);
+
+    return res.status(201).json({
+      message: 'Registration successful',
+      token,
+      user: { id: user.id, name: user.name, email: user.email, role: user.role, team_id: user.team_id }
+    });
   } catch (err) {
-    if (err.name === 'TokenExpiredError') {
-      return res.status(401).json({ error: 'TOKEN_EXPIRED', message: 'JWT token has expired. Please login again.' });
-    }
-    return res.status(401).json({ error: 'UNAUTHORIZED', message: 'Invalid JWT token' });
+    console.error('[AUTH] register error:', err.message);
+    return res.status(500).json({ error: 'SERVER_ERROR', message: 'Registration failed' });
   }
-}
+});
 
-/**
- * Role-based access control middleware factory.
- * Usage: requireRole('admin') or requireRole('admin', 'contractor')
- */
-function requireRole(...allowedRoles) {
-  return (req, res, next) => {
-    if (!req.user) {
-      return res.status(401).json({ error: 'UNAUTHORIZED', message: 'Authentication required' });
+// ── POST /api/auth/login ─────────────────────────────────────
+router.post('/login', async (req, res) => {
+  const { email, password } = req.body;
+
+  if (!email || !password) {
+    return res.status(400).json({ error: 'VALIDATION_ERROR', message: 'email and password are required' });
+  }
+
+  try {
+    const result = await db.query(
+      'SELECT id, name, email, password_hash, role, team_id FROM users WHERE email = $1',
+      [email.toLowerCase()]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(401).json({ error: 'UNAUTHORIZED', message: 'Invalid email or password' });
     }
-    if (!allowedRoles.includes(req.user.role)) {
-      return res.status(403).json({
-        error: 'FORBIDDEN',
-        message: `This action requires role: ${allowedRoles.join(' or ')}. Your role: ${req.user.role}`
-      });
+
+    const user = result.rows[0];
+    const passwordMatch = await bcrypt.compare(password, user.password_hash);
+
+    if (!passwordMatch) {
+      return res.status(401).json({ error: 'UNAUTHORIZED', message: 'Invalid email or password' });
     }
-    next();
-  };
-}
 
-/**
- * Issues a JWT token for a user.
- */
-function issueToken(user) {
-  return jwt.sign(
-    { id: user.id, email: user.email, role: user.role, team_id: user.team_id || null },
-    JWT_SECRET,
-    { expiresIn: '24h' }
-  );
-}
+    const token = issueToken(user);
+    return res.status(200).json({
+      message: 'Login successful',
+      token,
+      user: { id: user.id, name: user.name, email: user.email, role: user.role, team_id: user.team_id }
+    });
+  } catch (err) {
+    console.error('[AUTH] login error:', err.message);
+    return res.status(500).json({ error: 'SERVER_ERROR', message: 'Login failed' });
+  }
+});
 
-module.exports = { verifyJWT, requireRole, issueToken };
+// ── GET /api/auth/me ─────────────────────────────────────────
+router.get('/me', verifyJWT, async (req, res) => {
+  try {
+    const result = await db.query(
+      'SELECT id, name, email, role, team_id, created_at FROM users WHERE id = $1',
+      [req.user.id]
+    );
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'NOT_FOUND', message: 'User not found' });
+    }
+    return res.json(result.rows[0]);
+  } catch (err) {
+    console.error('[AUTH] me error:', err.message);
+    return res.status(500).json({ error: 'SERVER_ERROR', message: 'Could not retrieve profile' });
+  }
+});
+
+module.exports = router;

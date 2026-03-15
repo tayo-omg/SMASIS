@@ -2,19 +2,28 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
-
 const authRoutes = require('./auth');
 const ticketRoutes = require('./tickets');
 const { reportsRouter, catRouter } = require('./reports');
-
 const app = express();
 const PORT = process.env.PORT || 5000;
 
 // MIDDLEWARE
 app.use(cors({
-  origin: process.env.CLIENT_ORIGIN || '*',
+  origin: function(origin, callback) {
+    if (!origin) return callback(null, true);
+    if (
+      origin === process.env.CLIENT_ORIGIN ||
+      origin.includes('smasis-62ju') ||
+      origin.includes('localhost')
+    ) {
+      return callback(null, true);
+    }
+    return callback(new Error('Not allowed by CORS'));
+  },
   credentials: false,
 }));
+
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 

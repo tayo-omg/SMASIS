@@ -13,7 +13,7 @@ const PORT = process.env.PORT || 5000;
 // MIDDLEWARE
 app.use(cors({
   origin: process.env.CLIENT_ORIGIN || '*',
-  credentials: true,
+  credentials: false,
 }));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
